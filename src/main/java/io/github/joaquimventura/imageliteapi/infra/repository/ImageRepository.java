@@ -2,6 +2,7 @@ package io.github.joaquimventura.imageliteapi.infra.repository;
 
 import io.github.joaquimventura.imageliteapi.domain.entity.Image;
 import io.github.joaquimventura.imageliteapi.domain.enums.ImageExtension;
+import io.github.joaquimventura.imageliteapi.infra.repository.specs.ImageSpecs;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -9,35 +10,26 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+import static io.github.joaquimventura.imageliteapi.infra.repository.specs.GenericSpecs.conjunction;
+import static io.github.joaquimventura.imageliteapi.infra.repository.specs.ImageSpecs.nameLike;
+import static io.github.joaquimventura.imageliteapi.infra.repository.specs.ImageSpecs.tagsLike;
+import static org.springframework.data.jpa.domain.Specification.anyOf;
+import static org.springframework.data.jpa.domain.Specification.where;
+
 public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecificationExecutor<Image> {
-
-    /**
-     * @param extension
-     * @param query
-     * @return SELECT * FROM IMAGE WHERE 1 = 1 AND EXTENSION = 'PNG' AND ( NAME LIKE 'NAME' OR TAGS LIKE 'QUERY' )
-     */
-
 
     default List<Image> findByExtensionAndNameOrTagsLike(ImageExtension extension, String query) {
         // SELECT * FROM IMAGE WHERE 1 = 1
-        Specification<Image> conjunction = (root, q, criteriaBuilder) -> criteriaBuilder.conjunction();
-        Specification<Image> spec = Specification.where(conjunction);
+        Specification<Image> spec = where(conjunction());
 
         if (extension != null) {
             // AND EXTENSION = 'PNG'
-            Specification<Image> extensionEqual = (root, q, cb) -> cb.equal(root.get("extension"), extension);
-            spec = spec.and(extensionEqual);
+            spec = spec.and(ImageSpecs.extensionEqual(extension));
         }
 
         if (StringUtils.hasText(query)) {
             // AND ( NAME LIKE 'NAME' OR TAGS LIKE 'QUERY' )
-            Specification<Image> nameLike = (root, q, cb) -> cb.like(cb.upper(root.get("name")), "%" + query.toUpperCase() + "%");
-            Specification<Image> tagsLike = (root, q, cb) -> cb.like(cb.upper(root.get("tags")), "%" + query.toUpperCase() + "%");
-
-            Specification<Image> nameOrTagsLike = Specification.anyOf(nameLike, tagsLike);
-
-            spec = spec.and(nameOrTagsLike);
-
+            spec = spec.and(anyOf(nameLike(query), tagsLike(query)));
         }
 
         return findAll(spec);
